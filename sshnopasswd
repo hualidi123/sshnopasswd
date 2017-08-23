@@ -7,6 +7,9 @@ echo
 echo "——————————————————————————ssh免密登录————————————————————————————"
 echo
 
+set -e
+
+sed -n '3,$p' /etc/hosts | awk -F" " '{print $1}' >./iplist
 for i in `cat ./iplist`
 do
 scp /opt/packs/tcl8.4.20-src.tar.gz $i:/opt/packs
