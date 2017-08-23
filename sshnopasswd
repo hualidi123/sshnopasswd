@@ -1,0 +1,66 @@
+#!/bin/bash
+#需要先整理好hosts文件，编辑的IP与：：1间隔一行
+
+
+clear
+echo
+echo "——————————————————————————ssh免密登录————————————————————————————"
+echo
+
+for i in `cat ./iplist`
+do
+scp /opt/packs/tcl8.4.20-src.tar.gz $i:/opt/packs
+scp /opt/packs/expect5.45.tar.gz $i:/opt/packs
+
+ssh -t root@$i "
+        tar xfvz /opt/packs/tcl8.4.20-src.tar.gz -C /opt/packs
+        cd /opt/packs/tcl8.4.20/unix
+        ./configure --prefix=/usr/tcl --enable-shared
+        make && make install
+        cp tclUnixPort.h /opt/packs/tcl8.4.20/generic/ 
+        tar xfvz /opt/packs/expect5.45.tar.gz -C /opt/packs
+        cd /opt/packs/expect5.45/
+        ./configure --prefix=/usr/expect --with-tcl=/usr/tcl/lib --with-tclinclude=/opt/packs/tcl8.4.20/generic/
+        make && make install
+        ln -s /usr/tcl/bin/expect /usr/bin/expect
+"
+done
+
+>/root/.ssh/known_hosts
+>/root/.ssh/authorized_keys
+for ipd in $(cat ./iplist)
+do
+echo  " \033[40;37m 主机IP为：$ipd \033[0m"
+echo -en " \033[41;5m 请输入主机密码： \033[0m "
+read  passwd
+password=$passwd
+expect -c "
+spawn ssh-copy-id -i /root/.ssh/id_rsa.pub root@$ipd  
+        expect {  
+                \"*yes/no*\" {send \"yes\r\"; exp_continue}  
+                \"*password*\" {send \"$password\r\"; exp_continue}  
+                \"*Password*\" {send \"$password\r\";}  
+        }  
+"
+ssh -t root@$ipd 'expect -c "
+spawn ssh-keygen -t rsa
+ expect {
+ \"*id_rsa*\" {send \r;exp_continue}
+ \"*passphrase*\" {send \r;exp_continue}
+ \"*again*\" {send \r;exp_continue}
+}
+"
+'
+done
+
+for n in $(cat ./namelist)
+do
+scp $n:/root/.ssh/id_rsa.pub /root/.ssh/id_rsa.$n
+cat /root/.ssh/id_rsa.$n >> /root/.ssh/authorized_keys
+done
+
+for n in $(cat ./namelist)
+do
+scp /root/.ssh/authorized_keys $n:/root/.ssh/authorized_keys
+done
+
